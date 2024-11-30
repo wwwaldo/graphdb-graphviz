@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>Force-Directed Graph Visualization</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="data.js"></script>
     <style>
         body {
             margin: 0;
@@ -133,166 +132,169 @@
 
         const graphGroup = svg.append("g");
 
-        const linkForce = d3.forceLink(graphData.links)
-            .id(d => d.id)
-            .distance(100);
+        // Load data from JSON file
+        d3.json("graph_data.json").then(graphData => {
+            const linkForce = d3.forceLink(graphData.links)
+                .id(d => d.id)
+                .distance(100);
 
-        const simulation = d3.forceSimulation(graphData.nodes)
-            .force("link", linkForce)
-            .force("charge", d3.forceManyBody().strength(-300))
-            .force("center", d3.forceCenter(width / 2, height / 2).strength(0.1))
-            .force("x", d3.forceX(width / 2))
-            .force("y", d3.forceY(height / 2));
+            const simulation = d3.forceSimulation(graphData.nodes)
+                .force("link", linkForce)
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width / 2, height / 2).strength(0.1))
+                .force("x", d3.forceX(width / 2))
+                .force("y", d3.forceY(height / 2));
 
-        const link = graphGroup.selectAll(".link")
-            .data(graphData.links)
-            .join("line")
-            .attr("class", "link");
+            const link = graphGroup.selectAll(".link")
+                .data(graphData.links)
+                .join("line")
+                .attr("class", "link");
 
-        const node = graphGroup.selectAll(".node")
-            .data(graphData.nodes)
-            .join("g")
-            .attr("class", "node-group")
-            .style("pointer-events", "none");
+            const node = graphGroup.selectAll(".node")
+                .data(graphData.nodes)
+                .join("g")
+                .attr("class", "node-group")
+                .style("pointer-events", "none");
 
-        const circles = node.append("circle")
-            .attr("class", "node")
-            .attr("r", d => getNodeSize(d))
-            .style("fill", "#69b3a2")
-            .style("pointer-events", "all")
-            .call(d3.drag()
-                .on("start", dragstarted)
-                .on("drag", dragged)
-                .on("end", dragended))
-            .on("dblclick", toggleFixed)
-            .on("mouseover", highlightConnections)
-            .on("mouseout", resetHighlight);
+            const circles = node.append("circle")
+                .attr("class", "node")
+                .attr("r", d => getNodeSize(d, graphData))
+                .style("fill", "#69b3a2")
+                .style("pointer-events", "all")
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended))
+                .on("dblclick", toggleFixed)
+                .on("mouseover", highlightConnections)
+                .on("mouseout", resetHighlight);
 
-        const labels = node.append("text")
-            .text(d => d.id)
-            .attr("x", 0)
-            .attr("y", 0)
-            .attr("dy", ".35em")
-            .style("text-anchor", "middle")
-            .style("fill", "#000")
-            .style("font-family", "sans-serif")
-            .style("opacity", 0)
-            .style("pointer-events", "none");
+            const labels = node.append("text")
+                .text(d => d.id)
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("dy", ".35em")
+                .style("text-anchor", "middle")
+                .style("fill", "#000")
+                .style("font-family", "sans-serif")
+                .style("opacity", 0)
+                .style("pointer-events", "none");
 
-        simulation.on("tick", () => {
-            link
-                .attr("x1", d => d.source.x)
-                .attr("y1", d => d.source.y)
-                .attr("x2", d => d.target.x)
-                .attr("y2", d => d.target.y);
+            simulation.on("tick", () => {
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
 
-            node.attr("transform", d => `translate(${d.x},${d.y})`);
-        });
+                node.attr("transform", d => `translate(${d.x},${d.y})`);
+            });
 
-        function getNodeSize(node) {
-            const connections = graphData.links.filter(link => 
-                link.source.id === node.id || link.target.id === node.id
-            ).length;
-            return Math.sqrt(connections * 100) + 5;
-        }
-
-        function dragstarted(event) {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            event.subject.fx = event.subject.x;
-            event.subject.fy = event.subject.y;
-        }
-
-        function dragged(event) {
-            event.subject.fx = event.x;
-            event.subject.fy = event.y;
-        }
-
-        function dragended(event) {
-            if (!event.active) simulation.alphaTarget(0);
-            if (!event.subject.fixed) {
-                event.subject.fx = null;
-                event.subject.fy = null;
+            function getNodeSize(node, data) {
+                const connections = data.links.filter(link => 
+                    link.source.id === node.id || link.target.id === node.id
+                ).length;
+                return Math.sqrt(connections * 100) + 5;
             }
-        }
 
-        function toggleFixed(event, d) {
-            d.fixed = !d.fixed;
-            if (!d.fixed) {
-                d.fx = null;
-                d.fy = null;
-            } else {
-                d.fx = d.x;
-                d.fy = d.y;
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
             }
-        }
 
-        function highlightConnections(event, d) {
-            const connectedNodes = new Set();
-            const connectedLinks = new Set();
-            
-            graphData.links.forEach(link => {
-                if (link.source.id === d.id) {
-                    connectedNodes.add(link.target.id);
-                    connectedLinks.add(link);
-                } else if (link.target.id === d.id) {
-                    connectedNodes.add(link.source.id);
-                    connectedLinks.add(link);
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                if (!event.subject.fixed) {
+                    event.subject.fx = null;
+                    event.subject.fy = null;
                 }
+            }
+
+            function toggleFixed(event, d) {
+                d.fixed = !d.fixed;
+                if (!d.fixed) {
+                    d.fx = null;
+                    d.fy = null;
+                } else {
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+            }
+
+            function highlightConnections(event, d) {
+                const connectedNodes = new Set();
+                const connectedLinks = new Set();
+                
+                graphData.links.forEach(link => {
+                    if (link.source.id === d.id) {
+                        connectedNodes.add(link.target.id);
+                        connectedLinks.add(link);
+                    } else if (link.target.id === d.id) {
+                        connectedNodes.add(link.source.id);
+                        connectedLinks.add(link);
+                    }
+                });
+
+                node.style("opacity", node => 
+                    connectedNodes.has(node.id) || node.id === d.id ? 1 : 0.1
+                );
+
+                circles.style("fill", node => 
+                    node.id === d.id ? "#e15759" : "#69b3a2"
+                );
+
+                link.style("opacity", link => 
+                    connectedLinks.has(link) ? 1 : 0.1
+                );
+
+                labels.style("opacity", node => 
+                    node.id === d.id ? 1 : 0
+                );
+            }
+
+            function resetHighlight() {
+                node.style("opacity", 1);
+                circles.style("fill", "#69b3a2");
+                link.style("opacity", 1);
+                labels.style("opacity", 0);
+            }
+
+            // Force control handlers
+            d3.select("#charge").on("input", function() {
+                const charge = +this.value;
+                simulation.force("charge").strength(charge);
+                simulation.alpha(0.3).restart();
+                d3.select("#charge").next(".value-display").text(charge);
             });
 
-            node.style("opacity", node => 
-                connectedNodes.has(node.id) || node.id === d.id ? 1 : 0.1
-            );
-
-            circles.style("fill", node => 
-                node.id === d.id ? "#e15759" : "#69b3a2"
-            );
-
-            link.style("opacity", link => 
-                connectedLinks.has(link) ? 1 : 0.1
-            );
-
-            labels.style("opacity", node => 
-                node.id === d.id ? 1 : 0
-            );
-        }
-
-        function resetHighlight() {
-            node.style("opacity", 1);
-            circles.style("fill", "#69b3a2");
-            link.style("opacity", 1);
-            labels.style("opacity", 0);
-        }
-
-        // Force control handlers
-        d3.select("#charge").on("input", function() {
-            const charge = +this.value;
-            simulation.force("charge").strength(charge);
-            simulation.alpha(0.3).restart();
-            d3.select("#charge").next(".value-display").text(charge);
-        });
-
-        d3.select("#centerGravity").on("input", function() {
-            const gravity = +this.value;
-            simulation.force("center").strength(gravity);
-            simulation.alpha(0.3).restart();
-            d3.select("#centerGravity").next(".value-display").text(gravity);
-        });
-
-        d3.select("#linkDistance").on("input", function() {
-            const distance = +this.value;
-            simulation.force("link").distance(distance);
-            simulation.alpha(0.3).restart();
-            d3.select("#linkDistance").next(".value-display").text(distance);
-        });
-
-        d3.select("#resetSimulation").on("click", function() {
-            simulation.nodes().forEach(node => {
-                node.fixed = false;
-                node.fx = null;
-                node.fy = null;
+            d3.select("#centerGravity").on("input", function() {
+                const gravity = +this.value;
+                simulation.force("center").strength(gravity);
+                simulation.alpha(0.3).restart();
+                d3.select("#centerGravity").next(".value-display").text(gravity);
             });
-            simulation.alpha(1).restart();
+
+            d3.select("#linkDistance").on("input", function() {
+                const distance = +this.value;
+                simulation.force("link").distance(distance);
+                simulation.alpha(0.3).restart();
+                d3.select("#linkDistance").next(".value-display").text(distance);
+            });
+
+            d3.select("#resetSimulation").on("click", function() {
+                simulation.nodes().forEach(node => {
+                    node.fixed = false;
+                    node.fx = null;
+                    node.fy = null;
+                });
+                simulation.alpha(1).restart();
+            });
         });
     </script>
 </body>
