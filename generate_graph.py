@@ -1,33 +1,26 @@
 import json
 import random
 
-# Generate 1024 nodes
-nodes = [{"id": i, "name": f"Node {i}"} for i in range(1024)]
+# Generate 128 nodes
+nodes = [{"id": str(i), "name": f"Node {i}"} for i in range(128)]
 
-# Generate edges
+# Generate edges with string IDs
 links = []
-for node in nodes:
-    # Random number of edges (0-5) for this node
-    num_edges = random.randint(0, 5)
-    
-    # Create edges to random nodes
-    possible_targets = list(range(1024))
-    possible_targets.remove(node["id"])  # Remove self from possible targets
-    
-    # Remove already connected nodes to avoid duplicates
-    existing_connections = {link["source"] for link in links if link["target"] == node["id"]}
-    existing_connections.update({link["target"] for link in links if link["source"] == node["id"]})
-    possible_targets = [t for t in possible_targets if t not in existing_connections]
-    
-    # Create the edges
-    for _ in range(min(num_edges, len(possible_targets))):
-        target = random.choice(possible_targets)
-        possible_targets.remove(target)
+for _ in range(256):  # 2 connections per node on average
+    source = random.randint(0, 127)
+    target = random.randint(0, 127)
+    if source != target:  # Avoid self-loops
         links.append({
-            "source": node["id"],
-            "target": target
+            "source": str(source),
+            "target": str(target)
         })
 
-# Save to JSON file
-with open('graph_data.json', 'w') as f:
-    json.dump({"nodes": nodes, "links": links}, f)
+# Create graph data
+graph_data = {
+    "nodes": nodes,
+    "links": links
+}
+
+# Write to file
+with open('src/data/graph_data.json', 'w') as f:
+    json.dump(graph_data, f, indent=2)

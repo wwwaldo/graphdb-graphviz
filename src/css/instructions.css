@@ -1,0 +1,24 @@
+#instructions {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.9);
+    padding: 10px;
+    border-radius: 5px;
+    font-family: sans-serif;
+}
+
+#instructions h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+#instructions ul {
+    margin: 0;
+    padding-left: 20px;
+    list-style-type: disc;
+}
+
+#instructions li {
+    margin: 5px 0;
+}

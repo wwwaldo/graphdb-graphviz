@@ -1,77 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Force-Directed Graph Visualization</title>
+    <meta charset="utf-8">
+    <title>Force Graph Visualization</title>
+    <link rel="stylesheet" href="src/css/graph.css">
+    <link rel="stylesheet" href="src/css/search.css">
+    <link rel="stylesheet" href="src/css/instructions.css">
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-        }
-
-        .node {
-            stroke: #fff;
-            stroke-width: 1.5px;
-            transition: all 0.3s;
-        }
-        
-        .link {
-            stroke: #999;
-            stroke-opacity: 0.6;
-            transition: all 0.3s;
-        }
-
-        #instructions {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background: rgba(255,255,255,0.9);
-            padding: 10px;
-            border-radius: 5px;
-            font-family: sans-serif;
-        }
-
-        #instructions ul {
-            margin: 0;
-            padding-left: 20px;
-        }
-
-        #controls {
-            position: fixed;
-            right: 10px;
-            top: 10px;
-            background: rgba(255,255,255,0.9);
-            padding: 10px;
-            border-radius: 5px;
-            font-family: sans-serif;
-        }
-
-        .control-group {
-            margin-bottom: 10px;
-        }
-
-        .control-group label {
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        .value-display {
-            display: inline-block;
-            margin-left: 10px;
-            min-width: 40px;
-        }
-
-        #graph-container {
-            width: 100vw;
-            height: 100vh;
-        }
-
-        #rotation-container {
-            width: 100%;
-            height: 100%;
-        }
-    </style>
 </head>
 <body>
     <div id="instructions">
@@ -80,221 +15,24 @@
             <li>Drag nodes to reposition</li>
             <li>Double-click to fix/unfix node position</li>
             <li>Node size indicates number of connections</li>
-            <li>Use controls on the right to adjust forces</li>
+            <li>Node color ranges from purple (few) to yellow (many)</li>
+            <li>Search for nodes using the bottom panel</li>
         </ul>
     </div>
 
-    <div id="graph-container">
-        <div id="rotation-container">
-            <!-- SVG will be inserted here by D3 -->
-        </div>
-    </div>
+    <div id="graph"></div>
+    <div id="search"></div>
 
-    <div id="controls">
-        <h3>Force Controls</h3>
-        <div class="control-group">
-            <label for="charge">Node Repulsion</label>
-            <input type="range" id="charge" min="-1000" max="0" value="-300">
-            <span class="value-display">-300</span>
-        </div>
-        <div class="control-group">
-            <label for="collisionRadius">Collision Radius</label>
-            <input type="range" id="collisionRadius" min="0" max="50" value="20">
-            <span class="value-display">20</span>
-        </div>
-        <div class="control-group">
-            <label for="centerGravity">Center Gravity</label>
-            <input type="range" id="centerGravity" min="0" max="1" step="0.1" value="0.1">
-            <span class="value-display">0.1</span>
-        </div>
-        <div class="control-group">
-            <label for="linkDistance">Link Distance</label>
-            <input type="range" id="linkDistance" min="10" max="300" value="100">
-            <span class="value-display">100</span>
-        </div>
-        <button id="resetSimulation">Reset Simulation</button>
-    </div>
+    <script type="module">
+        import { ForceGraph } from './src/js/ForceGraph.js';
+        import { SearchPanel } from './src/js/SearchPanel.js';
 
-    <script>
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-
-        const container = d3.select("#rotation-container");
-        const svg = container.append("svg")
-            .attr("width", width)
-            .attr("height", height);
-
-        const background = svg.append("rect")
-            .attr("width", width)
-            .attr("height", height)
-            .style("fill", "none")
-            .style("pointer-events", "all");
-
-        const graphGroup = svg.append("g");
-
-        // Load data from JSON file
-        d3.json("graph_data.json").then(graphData => {
-            const linkForce = d3.forceLink(graphData.links)
-                .id(d => d.id)
-                .distance(100);
-
-            const simulation = d3.forceSimulation(graphData.nodes)
-                .force("link", linkForce)
-                .force("charge", d3.forceManyBody().strength(-300))
-                .force("center", d3.forceCenter(width / 2, height / 2).strength(0.1))
-                .force("x", d3.forceX(width / 2))
-                .force("y", d3.forceY(height / 2));
-
-            const link = graphGroup.selectAll(".link")
-                .data(graphData.links)
-                .join("line")
-                .attr("class", "link");
-
-            const node = graphGroup.selectAll(".node")
-                .data(graphData.nodes)
-                .join("g")
-                .attr("class", "node-group")
-                .style("pointer-events", "none");
-
-            const circles = node.append("circle")
-                .attr("class", "node")
-                .attr("r", d => getNodeSize(d, graphData))
-                .style("fill", "#69b3a2")
-                .style("pointer-events", "all")
-                .call(d3.drag()
-                    .on("start", dragstarted)
-                    .on("drag", dragged)
-                    .on("end", dragended))
-                .on("dblclick", toggleFixed)
-                .on("mouseover", highlightConnections)
-                .on("mouseout", resetHighlight);
-
-            const labels = node.append("text")
-                .text(d => d.id)
-                .attr("x", 0)
-                .attr("y", 0)
-                .attr("dy", ".35em")
-                .style("text-anchor", "middle")
-                .style("fill", "#000")
-                .style("font-family", "sans-serif")
-                .style("opacity", 0)
-                .style("pointer-events", "none");
-
-            simulation.on("tick", () => {
-                link
-                    .attr("x1", d => d.source.x)
-                    .attr("y1", d => d.source.y)
-                    .attr("x2", d => d.target.x)
-                    .attr("y2", d => d.target.y);
-
-                node.attr("transform", d => `translate(${d.x},${d.y})`);
-            });
-
-            function getNodeSize(node, data) {
-                const connections = data.links.filter(link => 
-                    link.source.id === node.id || link.target.id === node.id
-                ).length;
-                return Math.sqrt(connections * 100) + 5;
-            }
-
-            function dragstarted(event) {
-                if (!event.active) simulation.alphaTarget(0.3).restart();
-                event.subject.fx = event.subject.x;
-                event.subject.fy = event.subject.y;
-            }
-
-            function dragged(event) {
-                event.subject.fx = event.x;
-                event.subject.fy = event.y;
-            }
-
-            function dragended(event) {
-                if (!event.active) simulation.alphaTarget(0);
-                if (!event.subject.fixed) {
-                    event.subject.fx = null;
-                    event.subject.fy = null;
-                }
-            }
-
-            function toggleFixed(event, d) {
-                d.fixed = !d.fixed;
-                if (!d.fixed) {
-                    d.fx = null;
-                    d.fy = null;
-                } else {
-                    d.fx = d.x;
-                    d.fy = d.y;
-                }
-            }
-
-            function highlightConnections(event, d) {
-                const connectedNodes = new Set();
-                const connectedLinks = new Set();
-                
-                graphData.links.forEach(link => {
-                    if (link.source.id === d.id) {
-                        connectedNodes.add(link.target.id);
-                        connectedLinks.add(link);
-                    } else if (link.target.id === d.id) {
-                        connectedNodes.add(link.source.id);
-                        connectedLinks.add(link);
-                    }
-                });
-
-                node.style("opacity", node => 
-                    connectedNodes.has(node.id) || node.id === d.id ? 1 : 0.1
-                );
-
-                circles.style("fill", node => 
-                    node.id === d.id ? "#e15759" : "#69b3a2"
-                );
-
-                link.style("opacity", link => 
-                    connectedLinks.has(link) ? 1 : 0.1
-                );
-
-                labels.style("opacity", node => 
-                    node.id === d.id ? 1 : 0
-                );
-            }
-
-            function resetHighlight() {
-                node.style("opacity", 1);
-                circles.style("fill", "#69b3a2");
-                link.style("opacity", 1);
-                labels.style("opacity", 0);
-            }
-
-            // Force control handlers
-            d3.select("#charge").on("input", function() {
-                const charge = +this.value;
-                simulation.force("charge").strength(charge);
-                simulation.alpha(0.3).restart();
-                d3.select("#charge").next(".value-display").text(charge);
-            });
-
-            d3.select("#centerGravity").on("input", function() {
-                const gravity = +this.value;
-                simulation.force("center").strength(gravity);
-                simulation.alpha(0.3).restart();
-                d3.select("#centerGravity").next(".value-display").text(gravity);
-            });
-
-            d3.select("#linkDistance").on("input", function() {
-                const distance = +this.value;
-                simulation.force("link").distance(distance);
-                simulation.alpha(0.3).restart();
-                d3.select("#linkDistance").next(".value-display").text(distance);
-            });
-
-            d3.select("#resetSimulation").on("click", function() {
-                simulation.nodes().forEach(node => {
-                    node.fixed = false;
-                    node.fx = null;
-                    node.fy = null;
-                });
-                simulation.alpha(1).restart();
-            });
+        // Load data and initialize components
+        d3.json('src/data/graph_data.json').then(data => {
+            const graph = new ForceGraph('#graph', data);
+            const search = new SearchPanel('#search', graph);
+        }).catch(error => {
+            console.error('Error loading the data:', error);
         });
     </script>
 </body>
